@@ -42,6 +42,7 @@ jobs:
           wget -O normal-onlydomains.txt https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/multi-onlydomains.txt
           wget -O pro-onlydomains.txt https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/pro-onlydomains.txt
           wget -O pro.mini-onlydomains.txt https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/pro.mini-onlydomains.txt
+          wget -O pro.plus-onlydomains.txt https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/pro.plus-onlydomains.txt
           wget -O pro.plus.mini-onlydomains.txt https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/pro.plus.mini-onlydomains.txt
           wget -O ultimate-onlydomains.txt https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/ultimate-onlydomains.txt
           wget -O ultimate.mini-onlydomains.txt https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/ultimate.mini-onlydomains.txt
@@ -52,6 +53,7 @@ jobs:
           mihomo convert-ruleset domain text normal-onlydomains.txt normal.mrs
           mihomo convert-ruleset domain text pro-onlydomains.txt pro.mrs
           mihomo convert-ruleset domain text pro.mini-onlydomains.txt pro.mini.mrs
+          mihomo convert-ruleset domain text pro.plus-onlydomains.txt pro.plus.mrs
           mihomo convert-ruleset domain text pro.plus.mini-onlydomains.txt pro.plus.mini.mrs
           mihomo convert-ruleset domain text ultimate-onlydomains.txt ultimate.mrs
           mihomo convert-ruleset domain text ultimate.mini-onlydomains.txt ultimate.mini.mrs
@@ -62,7 +64,7 @@ jobs:
 
       - name: Delete temp files
         run: |
-          rm light-onlydomains.txt | rm normal-onlydomains.txt | rm pro-onlydomains.txt | rm pro.mini-onlydomains.txt | rm pro.plus.mini-onlydomains.txt | rm ultimate-onlydomains.txt | rm ultimate.mini-onlydomains.txt | rm tif-onlydomains.txt | rm tif.medium-onlydomains.txt | rm tif.mini-onlydomains.txt | rm mihomo-linux-amd64-alpha.deb
+          rm light-onlydomains.txt | rm normal-onlydomains.txt | rm pro-onlydomains.txt | rm pro.mini-onlydomains.txt | rm pro.plus-onlydomains.txt | rm pro.plus.mini-onlydomains.txt | rm ultimate-onlydomains.txt | rm ultimate.mini-onlydomains.txt | rm tif-onlydomains.txt | rm tif.medium-onlydomains.txt | rm tif.mini-onlydomains.txt | rm mihomo-linux-amd64-alpha.deb
           
       - name: Get current date
         id: date

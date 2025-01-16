@@ -1,5 +1,5 @@
 # hagezi-mihomo-rule-sets
-Converted hagezi blocklists to mrs format for mihomo
+Converted hagezi blocklists to mrs format for mihomo.
 Choose the right versions for you here: [Hagezi README](https://github.com/hagezi/dns-blocklists/blob/main/README.md)
 
 ## Example (pro plus plus + tif)
