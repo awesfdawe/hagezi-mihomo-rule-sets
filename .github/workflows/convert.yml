@@ -60,7 +60,7 @@ jobs:
           mihomo convert-ruleset domain text tif-onlydomains.txt tif.mrs
           mihomo convert-ruleset domain text tif.medium-onlydomains.txt tif.medium.mrs
           mihomo convert-ruleset domain text tif.mini-onlydomains.txt tif.mini.mrs
-          mv light.mrs normal.mrs pro.mrs pro.mini.mrs pro.plus.mini.mrs ultimate.mrs ultimate.mini.mrs tif.mrs tif.medium.mrs tif.mini.mrs hagezi/
+          mv light.mrs normal.mrs pro.mrs pro.mini.mrs pro.plus.mrs pro.plus.mini.mrs ultimate.mrs ultimate.mini.mrs tif.mrs tif.medium.mrs tif.mini.mrs hagezi/
 
       - name: Delete temp files
         run: |
