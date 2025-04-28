@@ -2,7 +2,6 @@ name: Convert hagezi to mrs
 
 on:
   push:
-    # only run when domain-list sources might change
     paths:
       - 'wildcard/*.txt'
   workflow_dispatch:
@@ -22,31 +21,33 @@ jobs:
     outputs:
       matrix: ${{ steps.filter.outputs.changed }}
     steps:
-      - name: Checkout repository
+      - name: Checkout code (depth=2)
         uses: actions/checkout@v4
         with:
-          fetch-depth: 2                        # need at least two commits for diff :contentReference[oaicite:4]{index=4}
+          fetch-depth: 2
 
       - name: Determine changed txt files
         id: filter
+        shell: bash
         run: |
           set -eux -o pipefail
-          # get list of wildcard/*.txt changed in this push
+          # list wildcard/*.txt changed in this push
           files=$(git diff --name-only HEAD^ HEAD | grep '^wildcard/.*\.txt$' || true)
-          # emit JSON array for matrix
+          # turn into JSON array
           json=$(printf '%s\n' $files | jq -R -s -c 'split("\n")[:-1]')
-          echo "::set-output name=changed::$json"
-        shell: bash
+          # export via GITHUB_OUTPUT (new syntax) 
+          echo "changed=$json" >> $GITHUB_OUTPUT
 
   convert:
     needs: discover
     runs-on: ubuntu-latest
-    if: ${{ needs.discover.outputs.matrix != '[]' }}  # skip if nothing changed :contentReference[oaicite:5]{index=5}
+    # skip entire job if no changed files
+    if: ${{ needs.discover.outputs.matrix != '[]' }}
     strategy:
       matrix:
         ruleset: ${{ fromJson(needs.discover.outputs.matrix) }}
     steps:
-      - name: Checkout repository
+      - name: Checkout code (full)
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -57,7 +58,8 @@ jobs:
           path: /var/cache/apt
           key: ${{ runner.os }}-apt-${{ hashFiles('wildcard/*.txt') }}
 
-      - name: Install system deps
+      - name: Install deps
+        shell: bash
         run: |
           set -eux -o pipefail
           sudo apt-get update
@@ -72,22 +74,25 @@ jobs:
       - name: Install Mihomo
         run: sudo apt install --fix-missing ${{ steps.get_deb.outputs.asset_path }}
 
-      - name: Convert changed list → .mrs
+      - name: Convert one changed list → .mrs
+        shell: bash
         env:
           NO_SKIP: true
         run: |
-          mkdir -p hagezi
           src=${{ matrix.ruleset }}
           base=$(basename "$src" .txt)
+          mkdir -p hagezi
           mihomo convert-ruleset domain text "$src" hagezi/"$base".mrs
 
-      - name: Commit & push only updated .mrs
-        uses: EndBug/add-and-commit@v9
-        with:
-          message: 'Update .mrs for changed lists ${{ github.run_started_at }}'
-          push: true
-          default_author: github_actions
-          pathspec: hagezi/${{ matrix.ruleset basename('.txt') }}.mrs
+      - name: Commit & push only that .mrs
+        shell: bash
+        run: |
+          set -eux -o pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add hagezi/"$base".mrs
+          git diff --staged --quiet || git commit -m "Update .mrs for $base at ${{ github.run_started_at }}"
+          git push
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
