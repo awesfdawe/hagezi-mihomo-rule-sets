@@ -30,9 +30,9 @@ jobs:
         if: steps.cache-mihomo.outputs.cache-hit != 'true'
         run: |
           curl -s https://api.github.com/repos/MetaCubeX/mihomo/releases/latest \
-            | jq -r '.assets[] | select(.name | test("mihomo-linux-amd64-alpha$")) | .browser_download_url' \
-            | xargs -n 1 wget -qO mihomo
-          chmod +x mihomo
+          | jq -r '.assets[] | select(.name | contains("linux-amd64") and endswith("gz")) | .browser_download_url' \
+          | head -n 1 \
+          | xargs wget -qO - | tar -xz -C . && chmod +x mihomo
 
       - name: Prepare hagezi directory
         run: mkdir -p hagezi txt_cache
