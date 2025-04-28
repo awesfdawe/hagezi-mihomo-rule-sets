@@ -1,101 +1,97 @@
 name: Convert hagezi to mrs
 
 on:
-  push:
-    paths:
-      - 'wildcard/*.txt'
-  workflow_dispatch:
   schedule:
-    - cron: '0 18 * * *'
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    - cron: "0 18 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  discover:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.filter.outputs.changed }}
-    steps:
-      - name: Checkout code (depth=2)
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
-      - name: Determine changed txt files
-        id: filter
-        shell: bash
-        run: |
-          set -eux -o pipefail
-          # list wildcard/*.txt changed in this push
-          files=$(git diff --name-only HEAD^ HEAD | grep '^wildcard/.*\.txt$' || true)
-          # turn into JSON array
-          json=$(printf '%s\n' $files | jq -R -s -c 'split("\n")[:-1]')
-          # export via GITHUB_OUTPUT (new syntax) 
-          echo "changed=$json" >> $GITHUB_OUTPUT
-
   convert:
-    needs: discover
     runs-on: ubuntu-latest
-    # skip entire job if no changed files
-    if: ${{ needs.discover.outputs.matrix != '[]' }}
-    strategy:
-      matrix:
-        ruleset: ${{ fromJson(needs.discover.outputs.matrix) }}
+
     steps:
-      - name: Checkout code (full)
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Cache APT packages
-        uses: actions/cache@v3
-        with:
-          path: /var/cache/apt
-          key: ${{ runner.os }}-apt-${{ hashFiles('wildcard/*.txt') }}
+      - name: Install system dependencies
+        run: sudo apt update && sudo apt install -y curl jq
 
-      - name: Install deps
-        shell: bash
+      - name: Cache Mihomo binary
+        id: cache-mihomo
+        uses: actions/cache@v4
+        with:
+          path: ./mihomo
+          key: mihomo-binary-${{ runner.os }}-v1
+
+      - name: Download Mihomo binary (if not cached)
+        if: steps.cache-mihomo.outputs.cache-hit != 'true'
         run: |
-          set -eux -o pipefail
-          sudo apt-get update
-          sudo apt-get install -y curl wget git jq
+          curl -s https://api.github.com/repos/MetaCubeX/mihomo/releases/latest \
+            | jq -r '.assets[] | select(.name | test("mihomo-linux-amd64-alpha$")) | .browser_download_url' \
+            | xargs -n 1 wget -qO mihomo
+          chmod +x mihomo
 
-      - name: Download latest Mihomo .deb
-        uses: softprops/action-gh-release@v1
-        with:
-          repository: MetaCubeX/mihomo
-          pattern: "mihomo-linux-amd64-alpha.*\\.deb"
+      - name: Prepare hagezi directory
+        run: mkdir -p hagezi txt_cache
 
-      - name: Install Mihomo
-        run: sudo apt install --fix-missing ${{ steps.get_deb.outputs.asset_path }}
-
-      - name: Convert one changed list → .mrs
-        shell: bash
-        env:
-          NO_SKIP: true
+      - name: Download updated Hagezi blocklists
         run: |
-          src=${{ matrix.ruleset }}
-          base=$(basename "$src" .txt)
-          mkdir -p hagezi
-          mihomo convert-ruleset domain text "$src" hagezi/"$base".mrs
+          for list in \
+            light-onlydomains \
+            multi-onlydomains \
+            pro-onlydomains \
+            pro.mini-onlydomains \
+            pro.plus-onlydomains \
+            pro.plus.mini-onlydomains \
+            ultimate-onlydomains \
+            ultimate.mini-onlydomains \
+            tif-onlydomains \
+            tif.medium-onlydomains \
+            tif.mini-onlydomains; do
+              echo "Checking ${list}.txt ..."
+              URL="https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/${list}.txt"
+              # Download only if newer (-z means compare with existing file timestamp)
+              curl -z "txt_cache/${list}.txt" -o "txt_cache/${list}.txt" -L --silent "$URL"
+          done
 
-      - name: Commit & push only that .mrs
-        shell: bash
+      - name: Convert changed blocklists to .mrs
         run: |
-          set -eux -o pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git add hagezi/"$base".mrs
-          git diff --staged --quiet || git commit -m "Update .mrs for $base at ${{ github.run_started_at }}"
-          git push
+          declare -A names=(
+            ["light-onlydomains"]="light"
+            ["multi-onlydomains"]="normal"
+            ["pro-onlydomains"]="pro"
+            ["pro.mini-onlydomains"]="pro.mini"
+            ["pro.plus-onlydomains"]="pro.plus"
+            ["pro.plus.mini-onlydomains"]="pro.plus.mini"
+            ["ultimate-onlydomains"]="ultimate"
+            ["ultimate.mini-onlydomains"]="ultimate.mini"
+            ["tif-onlydomains"]="tif"
+            ["tif.medium-onlydomains"]="tif.medium"
+            ["tif.mini-onlydomains"]="tif.mini"
+          )
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
+          for src in "${!names[@]}"; do
+            txt_file="txt_cache/${src}.txt"
+            mrs_file="hagezi/${names[$src]}.mrs"
+            if [[ ! -f "$mrs_file" ]] || [[ "$txt_file" -nt "$mrs_file" ]]; then
+              echo "Converting ${src}.txt to ${mrs_file} ..."
+              ./mihomo convert-ruleset domain text "$txt_file" "${names[$src]}.mrs"
+              mv "${names[$src]}.mrs" hagezi/
+            else
+              echo "No changes in ${src}.txt, skipping conversion."
+            fi
+          done
+
+      - name: Set current date
+        id: date
+        run: echo "DATE=$(TZ=Europe/Moscow date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_ENV
+
+      - name: Commit and push changes
+        uses: EndBug/add-and-commit@v9
         with:
-          name: hagezi-mrs
-          path: hagezi/*.mrs
+          message: 'Generating .mrs rule-sets ${{ env.DATE }}'
+          push: true
+          default_author: github_actions
