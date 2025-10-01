@@ -45,8 +45,8 @@ jobs:
             https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | \
             jq -r '.assets[] | select(.name | test("mihomo-linux-amd64-v.*\\.deb$")) | .browser_download_url' | \
             head -n 1)
-          wget -q -O .output/mihomo-linux-amd64.deb "$MIHOMO_BIN_URL"
-          sudo apt install --fix-missing .output/mihomo-linux-amd64.deb
+          wget -q -O ./.output/mihomo-linux-amd64.deb "$MIHOMO_BIN_URL"
+          sudo apt install --fix-missing ./.output/mihomo-linux-amd64.deb
         shell: bash
         
       - name: Convert to mrs
@@ -85,7 +85,6 @@ jobs:
       
       - name: Push mrs assets to main branch
         run: |
-          cd output || exit 1
           git init
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
