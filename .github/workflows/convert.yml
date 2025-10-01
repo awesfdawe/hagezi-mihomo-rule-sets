@@ -17,11 +17,6 @@ jobs:
   convert:
     runs-on: ubuntu-latest
     steps:
-      # - name: Checkout Repository
-      #   uses: actions/checkout@v5
-      #   with:
-      #     fetch-depth: 0
-
       - name: Set ENV
         run: |
           echo "RELEASE_NAME=$(date +%Y%m%d%H%M)" >> $GITHUB_ENV
@@ -93,3 +88,9 @@ jobs:
           git commit -m "${{ env.RELEASE_NAME }}"
           git remote add release "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
           git push -f -u release main
+      
+      - name: Purge jsdelivr CDN
+        run: |
+          for file in $(ls hagezi/); do
+            curl -i "https://purge.jsdelivr.net/gh/${{ github.repository }}@main/hagezi/${file}"
+          done
