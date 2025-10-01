@@ -74,7 +74,7 @@ jobs:
             dest=${outmap[$src]:-$src}
             url="$base/$src"
             wget -q -O ".output/$dest" "$url"
-            clean_name=${dest$-onlydomains.txt}
+            clean_name=${dest%-onlydomains.txt}
             out_file="hagezi/${clean_name}.mrs"
             mihomo convert-ruleset domain text ".output/$dest" "$out_file"
           done
