@@ -1,0 +1,95 @@
+name: Convert hagezi to mrs
+
+on:
+  schedule:
+    - cron: "0 18 * * *"
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**/README.md"
+  
+permissions:
+  contents: write
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      # - name: Checkout Repository
+      #   uses: actions/checkout@v5
+      #   with:
+      #     fetch-depth: 0
+
+      - name: Set ENV
+        run: |
+          echo "RELEASE_NAME=$(date +%Y%m%d%H%M)" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Install Depedencies
+        run: |
+          sudo apt update
+          sudo apt install -y curl wget git jq
+        shell: bash
+         
+      - name: Create folders
+        run: |
+          mkdir -p .output
+          mkdir -p hagezi
+        shell: bash
+
+      - name: Download and install Mihomo
+        run: |
+          MIHOMO_BIN_URL=$(curl -s -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/MetaCubeX/mihomo/releases/latest | \
+            jq -r '.assets[] | select(.name | test("mihomo-linux-amd64-v.*\\.deb$")) | .browser_download_url' | \
+            head -n 1)
+          wget -q -O .output/mihomo-linux-amd64.deb "$MIHOMO_BIN_URL"
+          sudo apt install --fix-missing .output/mihomo-linux-amd64.deb
+        shell: bash
+        
+      - name: Convert to mrs
+        run: |
+          base="https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard"
+          files=(
+            light-onlydomains.txt
+            multi-onlydomains.txt
+            pro-onlydomains.txt
+            pro.mini-onlydomains.txt
+            pro.plus-onlydomains.txt
+            pro.plus.mini-onlydomains.txt
+            ultimate-onlydomains.txt
+            ultimate.mini-onlydomains.txt
+            tif-onlydomains.txt
+            tif.medium-onlydomains.txt
+            tif.mini-onlydomains.txt
+          )
+
+          declare -A outmap=(
+            [multi-onlydomains.txt]=normal-onlydomains.txt
+          )
+
+          for src in "${files[@]}"; do
+            dest=${outmap[$src]:-$src}
+            url="$base/$src"
+            wget -q -O ".output/$dest" "$url"
+            clean_name=${dest$-onlydomains.txt}
+            out_file="hagezi/${clean_name}.mrs"
+            mihomo convert-ruleset domain text ".output/$dest" "$out_file"
+          done
+
+      - name: Delete temp files
+        run: |
+          rm -rf .output
+      
+      - name: Push mrs assets to main branch
+        run: |
+          cd output || exit 1
+          git init
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b main
+          git add hagezi/*.mrs
+          git commit -m "${{ env.RELEASE_NAME }}"
+          git remote add release "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
+          git push -f -u release main
