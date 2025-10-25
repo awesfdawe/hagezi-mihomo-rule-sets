@@ -14,9 +14,10 @@ permissions:
   contents: write
 
 jobs:
-  convert:
+  personal:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
       - name: Set ENV
         run: |
           echo "RELEASE_NAME=$(date +%Y%m%d%H%M)" >> $GITHUB_ENV
