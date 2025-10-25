@@ -1,4 +1,4 @@
-name: Convert hagezi to mrs
+name: Personal .mrs builds
 
 on:
   schedule:
