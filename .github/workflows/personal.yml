@@ -47,29 +47,31 @@ jobs:
         
       - name: Convert to mrs
         run: |
-            find personal -type f -name sources.txt | while read source_file; do
-              subdir=$(dirname "$source_file")
-              dir_name=$(basename "$subdir")
-              echo "Processing directory: $dir_name"
-              
-              temp_file=".output/${dir_name}_combined.tmp"
-              > "$temp_file"
-              
-              while IFS= read -r url || [ -n "$url" ]; do
-                [[ -z "$url" || "$url" =~ ^[[:space:]]*# ]] && continue
-                echo "Downloading $url"
-                wget -q -O - "$url" >> "$temp_file" || true
-                printf "\n" >> "$temp_file"
-              done < "$source_file"
-              
-              addition_file="${subdir}/addition.list"
-              if [ -f "$addition_file" ]; then
-                cat "$addition_file" >> "$temp_file"
-              fi
-              
-              out_file="${subdir}/${dir_name}.mrs"
-              mihomo convert-ruleset domain text "$temp_file" "$out_file"
-            done
+          find personal -type f -name sources.txt | while read source_file; do
+            subdir=$(dirname "$source_file")
+            dir_name=$(basename "$subdir")
+            echo "Processing directory: $dir_name"
+            
+            temp_file=".output/${dir_name}_combined.tmp"
+            > "$temp_file"
+            
+            while IFS= read -r url || [ -n "$url" ]; do
+              [[ -z "$url" || "$url" =~ ^[[:space:]]*# ]] && continue
+              echo "Downloading $url"
+              wget -q -O - "$url" >> "$temp_file" || true
+              printf "\n" >> "$temp_file"
+            done < "$source_file"
+            
+            addition_file="${subdir}/addition.list"
+            if [ -f "$addition_file" ]; then
+              cat "$addition_file" >> "$temp_file"
+            fi
+            
+            # Создаём .mrs файл в корне personal/, а не в подпапке
+            out_file="personal/${dir_name}.mrs"
+            mihomo convert-ruleset domain text "$temp_file" "$out_file"
+          done
+
 
 
       - name: Delete temp files
