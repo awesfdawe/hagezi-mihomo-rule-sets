@@ -74,7 +74,13 @@ jobs:
                 [[ -z "$url" || "$url" =~ ^[[:space:]]*# ]] && continue
                 
                 echo "  Downloading: $url"
-                curl -fsSL "$url" >> "$combined_file" 2>/dev/null || wget -q -O - "$url" >> "$combined_file" || true
+                if curl -fsSL "$url" >> "$combined_file" 2>/dev/null; then
+                  echo "    Successfully downloaded"
+                elif wget -q -O - "$url" >> "$combined_file" 2>/dev/null; then
+                  echo "    Successfully downloaded with wget"
+                else
+                  echo "    Failed to download"
+                fi
                 printf "\n" >> "$combined_file"
               done < "$sources_file"
             else
@@ -89,8 +95,13 @@ jobs:
               echo "Warning: $addition_file not found"
             fi
             
-            # Очистить от пустых строк и комментариев
-            sed -i '/^[[:space:]]*$/d; /^[[:space:]]*#/d' "$combined_file"
+            # Показать содержимое перед очисткой
+            echo "=== Content before cleaning (first 20 lines) ==="
+            head -20 "$combined_file"
+            echo "=== Total lines before cleaning: $(wc -l < "$combined_file") ==="
+            
+            # Очистить ТОЛЬКО пустые строки, НЕ трогать комментарии или строки с +
+            sed -i '/^[[:space:]]*$/d' "$combined_file"
             
             # Проверить что combined_file не пуст
             if [ ! -s "$combined_file" ]; then
@@ -102,12 +113,14 @@ jobs:
             
             # Конвертировать в .mrs формат
             echo "Converting to .mrs format"
-            mihomo convert-ruleset domain text "$combined_file" "$output_file" || {
-              echo "Error converting $folder_name with domain type, trying ipcidr..."
-              mihomo convert-ruleset ipcidr text "$combined_file" "$output_file" || echo "Failed to convert $folder_name"
-            }
+            if mihomo convert-ruleset domain text "$combined_file" "$output_file"; then
+              echo "Successfully created $output_file"
+            elif mihomo convert-ruleset ipcidr text "$combined_file" "$output_file"; then
+              echo "Successfully created $output_file with ipcidr type"
+            else
+              echo "Failed to convert $folder_name"
+            fi
             
-            echo "Successfully created $output_file"
             echo "---"
           done
         shell: bash
