@@ -48,6 +48,7 @@ jobs:
       - name: Convert to mrs
         run: |
           find personal -type f -name sources.txt | while read source_file; do
+            rm -rf .output/*
             subdir=$(dirname "$source_file")
             dir_name=$(basename "$subdir")
             echo "Processing directory: $dir_name"
