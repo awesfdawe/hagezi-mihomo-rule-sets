@@ -74,13 +74,21 @@ jobs:
                 [[ -z "$url" || "$url" =~ ^[[:space:]]*# ]] && continue
                 
                 echo "  Downloading: $url"
-                if curl -fsSL "$url" >> "$combined_file" 2>/dev/null; then
-                  echo "    Successfully downloaded"
-                elif wget -q -O - "$url" >> "$combined_file" 2>/dev/null; then
+                
+                # Скачать во временный файл
+                temp_download=".output/temp_download_${folder_name}.txt"
+                
+                if curl -fsSL "$url" -o "$temp_download" 2>/dev/null; then
+                  cat "$temp_download" >> "$combined_file"
+                  echo "    Successfully downloaded with curl"
+                elif wget -q -O "$temp_download" "$url" 2>/dev/null; then
+                  cat "$temp_download" >> "$combined_file"
                   echo "    Successfully downloaded with wget"
                 else
-                  echo "    Failed to download"
+                  echo "    Failed to download: $url"
                 fi
+                
+                rm -f "$temp_download"
                 printf "\n" >> "$combined_file"
               done < "$sources_file"
             else
@@ -91,16 +99,17 @@ jobs:
             if [ -f "$addition_file" ]; then
               echo "Adding $addition_file"
               cat "$addition_file" >> "$combined_file"
+              printf "\n" >> "$combined_file"
             else
               echo "Warning: $addition_file not found"
             fi
             
             # Показать содержимое перед очисткой
             echo "=== Content before cleaning (first 20 lines) ==="
-            head -20 "$combined_file"
+            head -20 "$combined_file" || true
             echo "=== Total lines before cleaning: $(wc -l < "$combined_file") ==="
             
-            # Очистить ТОЛЬКО пустые строки, НЕ трогать комментарии или строки с +
+            # Очистить ТОЛЬКО пустые строки
             sed -i '/^[[:space:]]*$/d' "$combined_file"
             
             # Проверить что combined_file не пуст
@@ -124,6 +133,7 @@ jobs:
             echo "---"
           done
         shell: bash
+
 
       - name: Delete temp files
         run: |
