@@ -7,7 +7,7 @@ on:
     paths:
       - 'personal/**'
     branches:
-      - main
+      - source
   workflow_dispatch:
   
 permissions:
