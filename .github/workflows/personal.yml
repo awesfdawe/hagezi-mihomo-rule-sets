@@ -18,12 +18,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      
       - name: Set ENV
         run: |
           echo "RELEASE_NAME=$(date +%Y%m%d%H%M)" >> $GITHUB_ENV
         shell: bash
 
-      - name: Install Depedencies
+      - name: Install Dependencies
         run: |
           sudo apt update
           sudo apt install -y curl wget git jq
@@ -32,7 +33,6 @@ jobs:
       - name: Create folders
         run: |
           mkdir -p .output
-          mkdir -p hagezi
         shell: bash
 
       - name: Download and install Mihomo
@@ -45,54 +45,79 @@ jobs:
           sudo apt install --fix-missing ./.output/mihomo-linux-amd64.deb
         shell: bash
         
-      - name: Convert to mrs
+      - name: Process personal rules
         run: |
-          find personal -type f -name sources.txt | while read source_file; do
-            rm -rf .output/*
-            subdir=$(dirname "$source_file")
-            dir_name=$(basename "$subdir")
-            echo "Processing directory: $dir_name"
-            
-            temp_file=".output/${dir_name}_combined.txt"
-            > "$temp_file"
-            
-            # Загружаем и объединяем все источники
-            while IFS= read -r url || [ -n "$url" ]; do
-              [[ -z "$url" || "$url" =~ ^[[:space:]]*# ]] && continue
-              echo "Downloading $url"
-              curl -fsSL "$url" >> "$temp_file" 2>/dev/null || wget -q -O - "$url" >> "$temp_file" || true
-              printf "\n" >> "$temp_file"
-            done < "$source_file"
-            
-            # Добавляем дополнительные правила если есть
-            addition_file="${subdir}/addition.list"
-            if [ -f "$addition_file" ]; then
-              cat "$addition_file" >> "$temp_file"
+          set -e
+          
+          # Перебрать все папки в personal/
+          for folder in personal/*/; do
+            if [ ! -d "$folder" ]; then
+              continue
             fi
             
-            # Очищаем файл от пустых строк и комментариев
-            sed -i '/^[[:space:]]*$/d; /^[[:space:]]*#/d' "$temp_file"
+            folder_name=$(basename "$folder")
+            echo "Processing folder: $folder_name"
             
-            echo "=== Processing $dir_name: $(wc -l < "$temp_file") lines ==="
+            sources_file="$folder/sources.txt"
+            addition_file="$folder/addition.list"
+            combined_file=".output/${folder_name}_combined.txt"
+            output_file="personal/${folder_name}.mrs"
             
-            # Создаём .mrs файл
-            out_file="personal/${dir_name}.mrs"
-            if [ -s "$temp_file" ]; then
-              mihomo convert-ruleset domain text "$temp_file" "$out_file" || {
-                echo "Error converting $dir_name, trying alternative format..."
-                mihomo convert-ruleset ipcidr text "$temp_file" "$out_file" || echo "Failed to convert $dir_name"
-              }
+            # Создать пустой combined файл
+            > "$combined_file"
+            
+            # Скачать и объединить файлы из sources.txt
+            if [ -f "$sources_file" ]; then
+              echo "Downloading sources from $sources_file"
+              while IFS= read -r url || [ -n "$url" ]; do
+                # Пропустить пустые строки и комментарии
+                [[ -z "$url" || "$url" =~ ^[[:space:]]*# ]] && continue
+                
+                echo "  Downloading: $url"
+                curl -fsSL "$url" >> "$combined_file" 2>/dev/null || wget -q -O - "$url" >> "$combined_file" || true
+                printf "\n" >> "$combined_file"
+              done < "$sources_file"
             else
-              echo "Warning: $temp_file is empty, skipping conversion"
+              echo "Warning: $sources_file not found"
             fi
+            
+            # Добавить addition.list если существует
+            if [ -f "$addition_file" ]; then
+              echo "Adding $addition_file"
+              cat "$addition_file" >> "$combined_file"
+            else
+              echo "Warning: $addition_file not found"
+            fi
+            
+            # Очистить от пустых строк и комментариев
+            sed -i '/^[[:space:]]*$/d; /^[[:space:]]*#/d' "$combined_file"
+            
+            # Проверить что combined_file не пуст
+            if [ ! -s "$combined_file" ]; then
+              echo "Error: Combined file is empty for $folder_name"
+              continue
+            fi
+            
+            echo "=== Processing $folder_name: $(wc -l < "$combined_file") lines ==="
+            
+            # Конвертировать в .mrs формат
+            echo "Converting to .mrs format"
+            mihomo convert-ruleset domain text "$combined_file" "$output_file" || {
+              echo "Error converting $folder_name with domain type, trying ipcidr..."
+              mihomo convert-ruleset ipcidr text "$combined_file" "$output_file" || echo "Failed to convert $folder_name"
+            }
+            
+            echo "Successfully created $output_file"
+            echo "---"
           done
         shell: bash
 
       - name: Delete temp files
         run: |
           rm -rf .output
+        shell: bash
       
-      - name: Push mrs assets to main branch
+      - name: Push mrs assets to personal branch
         run: |
           git init
           git config --local user.name "github-actions[bot]"
@@ -103,9 +128,12 @@ jobs:
           git commit -m "${{ env.RELEASE_NAME }}"
           git remote add release "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}"
           git push -f -u release personal
+        shell: bash
       
       - name: Purge jsdelivr CDN
         run: |
-          for file in $(ls personal/); do
-            curl -i "https://purge.jsdelivr.net/gh/${{ github.repository }}@personal/personal/${file}"
+          for file in $(ls personal/*.mrs 2>/dev/null); do
+            filename=$(basename "$file")
+            curl -i "https://purge.jsdelivr.net/gh/${{ github.repository }}@personal/personal/${filename}"
           done
+        shell: bash
