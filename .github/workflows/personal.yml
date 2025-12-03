@@ -61,6 +61,11 @@ jobs:
               wget -q -O - "$url" >> "$temp_file" || true
               printf "\n" >> "$temp_file"
             done < "$source_file"
+
+            echo "=== Content of temp file for $dir_name ==="
+            wc -l "$temp_file"
+            head -n 20 "$temp_file"
+            echo "=== End of preview ==="
             
             addition_file="${subdir}/addition.list"
             if [ -f "$addition_file" ]; then
