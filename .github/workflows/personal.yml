@@ -52,32 +52,40 @@ jobs:
             dir_name=$(basename "$subdir")
             echo "Processing directory: $dir_name"
             
-            temp_file=".output/${dir_name}_combined.tmp"
+            temp_file=".output/${dir_name}_combined.txt"
             > "$temp_file"
             
+            # Загружаем и объединяем все источники
             while IFS= read -r url || [ -n "$url" ]; do
               [[ -z "$url" || "$url" =~ ^[[:space:]]*# ]] && continue
               echo "Downloading $url"
-              wget -q -O - "$url" >> "$temp_file" || true
+              curl -fsSL "$url" >> "$temp_file" 2>/dev/null || wget -q -O - "$url" >> "$temp_file" || true
               printf "\n" >> "$temp_file"
             done < "$source_file"
-
-            echo "=== Content of temp file for $dir_name ==="
-            wc -l "$temp_file"
-            head -n 20 "$temp_file"
-            echo "=== End of preview ==="
             
+            # Добавляем дополнительные правила если есть
             addition_file="${subdir}/addition.list"
             if [ -f "$addition_file" ]; then
               cat "$addition_file" >> "$temp_file"
             fi
             
-            # Создаём .mrs файл в корне personal/, а не в подпапке
+            # Очищаем файл от пустых строк и комментариев
+            sed -i '/^[[:space:]]*$/d; /^[[:space:]]*#/d' "$temp_file"
+            
+            echo "=== Processing $dir_name: $(wc -l < "$temp_file") lines ==="
+            
+            # Создаём .mrs файл
             out_file="personal/${dir_name}.mrs"
-            mihomo convert-ruleset domain text "$temp_file" "$out_file"
+            if [ -s "$temp_file" ]; then
+              mihomo convert-ruleset domain text "$temp_file" "$out_file" || {
+                echo "Error converting $dir_name, trying alternative format..."
+                mihomo convert-ruleset ipcidr text "$temp_file" "$out_file" || echo "Failed to convert $dir_name"
+              }
+            else
+              echo "Warning: $temp_file is empty, skipping conversion"
+            fi
           done
-
-
+        shell: bash
 
       - name: Delete temp files
         run: |
