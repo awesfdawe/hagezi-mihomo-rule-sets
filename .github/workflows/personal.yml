@@ -78,14 +78,26 @@ jobs:
                 # Скачать во временный файл
                 temp_download=".output/temp_download_${folder_name}.txt"
                 
-                if curl -fsSL "$url" -o "$temp_download" 2>/dev/null; then
-                  cat "$temp_download" >> "$combined_file"
-                  echo "    Successfully downloaded with curl"
-                elif wget -q -O "$temp_download" "$url" 2>/dev/null; then
-                  cat "$temp_download" >> "$combined_file"
-                  echo "    Successfully downloaded with wget"
+                # Попробовать curl с выводом ошибок
+                if curl -fsSL "$url" -o "$temp_download"; then
+                  if [ -s "$temp_download" ]; then
+                    cat "$temp_download" >> "$combined_file"
+                    echo "    Successfully downloaded with curl ($(wc -l < "$temp_download") lines)"
+                  else
+                    echo "    Downloaded but file is empty"
+                  fi
+                # Попробовать wget
+                elif wget -q -O "$temp_download" "$url"; then
+                  if [ -s "$temp_download" ]; then
+                    cat "$temp_download" >> "$combined_file"
+                    echo "    Successfully downloaded with wget ($(wc -l < "$temp_download") lines)"
+                  else
+                    echo "    Downloaded but file is empty"
+                  fi
                 else
                   echo "    Failed to download: $url"
+                  echo "    Trying with verbose curl for debug..."
+                  curl -v "$url" 2>&1 | head -20 || true
                 fi
                 
                 rm -f "$temp_download"
@@ -133,6 +145,7 @@ jobs:
             echo "---"
           done
         shell: bash
+
 
 
       - name: Delete temp files
