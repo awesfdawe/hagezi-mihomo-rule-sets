@@ -70,16 +70,19 @@ jobs:
             if [ -f "$sources_file" ]; then
               echo "Downloading sources from $sources_file"
               while IFS= read -r url || [ -n "$url" ]; do
+                # Очистить URL от невидимых символов и пробелов
+                url=$(echo "$url" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                
                 # Пропустить пустые строки и комментарии
-                [[ -z "$url" || "$url" =~ ^[[:space:]]*# ]] && continue
+                [[ -z "$url" || "$url" =~ ^# ]] && continue
                 
                 echo "  Downloading: $url"
                 
                 # Скачать во временный файл
                 temp_download=".output/temp_download_${folder_name}.txt"
                 
-                # Попробовать curl с выводом ошибок
-                if curl -fsSL "$url" -o "$temp_download"; then
+                # Попробовать curl
+                if curl -fsSL "$url" -o "$temp_download" 2>/dev/null; then
                   if [ -s "$temp_download" ]; then
                     cat "$temp_download" >> "$combined_file"
                     echo "    Successfully downloaded with curl ($(wc -l < "$temp_download") lines)"
@@ -87,7 +90,7 @@ jobs:
                     echo "    Downloaded but file is empty"
                   fi
                 # Попробовать wget
-                elif wget -q -O "$temp_download" "$url"; then
+                elif wget -q -O "$temp_download" "$url" 2>/dev/null; then
                   if [ -s "$temp_download" ]; then
                     cat "$temp_download" >> "$combined_file"
                     echo "    Successfully downloaded with wget ($(wc -l < "$temp_download") lines)"
@@ -96,8 +99,6 @@ jobs:
                   fi
                 else
                   echo "    Failed to download: $url"
-                  echo "    Trying with verbose curl for debug..."
-                  curl -v "$url" 2>&1 | head -20 || true
                 fi
                 
                 rm -f "$temp_download"
@@ -145,8 +146,6 @@ jobs:
             echo "---"
           done
         shell: bash
-
-
 
       - name: Delete temp files
         run: |
